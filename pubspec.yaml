@@ -1,0 +1,84 @@
+name: e_waste_app
+description: "A new Flutter project."
+
+# Prevents accidental publishing to pub.dev
+publish_to: 'none'
+
+# Application version
+version: 1.0.0+1
+
+# Dart SDK version
+environment:
+  sdk: ^3.7.0
+
+# Dependencies
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Animation Packages
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  provider: ^6.1.2
+  flutter_animate: ^4.5.2
+  flutter_svg: ^2.0.17
+  font_awesome_flutter: ^10.8.0
+  animate_do: ^4.2.0
+  fl_chart: ^0.70.2
+  flutter_staggered_animations: ^1.1.1
+  shimmer: ^3.0.0
+  salomon_bottom_bar: ^3.3.2
+  lottie: ^2.7.0
+
+  # Localization
+  intl: ^0.20.2
+
+  # UI Components
+  timeline_tile: ^2.0.0
+  flutter_rating_bar: ^4.0.1
+
+  # Media Handling
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  youtube_player_flutter: ^9.1.1
+
+  # Maps & Geolocation
+  geolocator: ^13.0.3
+  geocoding: ^3.0.0
+  google_maps_flutter: ^2.12.0
+  flutter_map: ^8.1.1
+
+  # Navigation & Sharing
+  url_launcher: ^6.3.1
+  permission_handler: ^11.4.0
+  share_plus: ^10.1.4
+
+  # Special Effects & UI Enhancements
+  confetti: ^0.8.0
+  liquid_swipe: ^3.1.0
+  carousel_slider: ^5.0.0
+  iconsax: ^0.0.8
+#  flutter_native_splash: ^2.4.4
+
+# Dev Dependencies
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"  # Replace with your icon
+# Flutter Configuration
+flutter:
+  uses-material-design: true
+
+
+  # Assets
+  assets:
+    - assets/logo.png
+
+#flutter_native_splash:
+#  color: "#ffffff"
+#  image: assets/logo.png
