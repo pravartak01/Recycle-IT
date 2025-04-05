@@ -1,8 +1,14 @@
+import 'package:e_waste_app/UiHelper/snackbar_message.dart';
+import 'package:e_waste_app/widgets/bottom_navbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'phone_verification.dart';
 import 'login_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../Home Screen/home_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SignupScreen extends StatefulWidget {
   @override
@@ -14,6 +20,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -37,18 +45,102 @@ class _SignupScreenState extends State<SignupScreen> {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
+  void _signUpWithEmailPass() async {
+    // Implement Google Sign-In logic here
+    setState(() => _isLoading = true);
+    if (_formKey.currentState!.validate()) {
+      // Simulate API call delay
+      try {
+        final userCredential = await _auth.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        await userCredential.user?.updateDisplayName(
+          _nameController.text.trim(),
+        );
+        setState(() => _isLoading = false);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PhoneVerificationScreen()),
+        );
+        // print(userCredential.user?.uid);
+        showSnackBar(
+          context,
+          "User Signed up Successfully! Please verify your Phone number",
+          true,
+        );
+        addUser();
+      } on FirebaseAuthException catch (e) {
+        showSnackBar(context, e.message.toString(), false);
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
   void _signInWithGoogle() async {
     // Implement Google Sign-In logic here
     setState(() => _isLoading = true);
 
-    // Simulate API call delay
-    await Future.delayed(Duration(seconds: 1));
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        showSnackBar(context, "Google Sign-In cancelled.", false);
 
-    setState(() => _isLoading = false);
-    Navigator.push(
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+      showSnackBar(context, "Google Sign-In successful!", true);
+      setState(() => _isLoading = false);
+      Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => PhoneVerificationScreen())
-    );
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+      );
+      addUser();
+      return;
+    } catch (e) {
+      showSnackBar(context, "Google Sign-In failed: $e", false);
+      setState(() => _isLoading = false);
+      return;
+    }
+  }
+
+  void addUser() async {
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      DocumentReference userRef = FirebaseFirestore.instance
+          .collection('Users')
+          .doc(user.uid);
+      await userRef.set({
+        'displayName': user.displayName,
+        'email': user.email,
+        'phone': user.phoneNumber,
+        'profilePictureURL': user.photoURL,
+        'location': 'User location', // Default or user input
+        'accountCreated': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  // Sign Out
+  Future<void> signOut() async {
+    await _googleSignIn.signOut();
+    await _auth.signOut();
+    showSnackBar(context, "Signed out successfully.", true);
   }
 
   @override
@@ -92,22 +184,25 @@ class _SignupScreenState extends State<SignupScreen> {
 
                     SizedBox(height: 40),
                     Text(
-                      'Create Account',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: textDarkColor,
-                      ),
-                    ).animate().fadeIn(duration: 500.ms).moveX(begin: -20, end: 0),
+                          'Create Account',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: textDarkColor,
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 500.ms)
+                        .moveX(begin: -20, end: 0),
 
                     SizedBox(height: 8),
                     Text(
-                      'Join us in making the world greener',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: textLightColor,
-                      ),
-                    ).animate().fadeIn(duration: 500.ms, delay: 200.ms).moveX(begin: -20, end: 0),
+                          'Join us in making the world greener',
+                          style: TextStyle(fontSize: 16, color: textLightColor),
+                        )
+                        .animate()
+                        .fadeIn(duration: 500.ms, delay: 200.ms)
+                        .moveX(begin: -20, end: 0),
 
                     SizedBox(height: 40),
                     Form(
@@ -118,7 +213,9 @@ class _SignupScreenState extends State<SignupScreen> {
                             controller: _nameController,
                             label: "Full Name",
                             icon: Icons.person_outline,
-                            validator: (val) => val!.isEmpty ? 'Name is required' : null,
+                            validator:
+                                (val) =>
+                                    val!.isEmpty ? 'Name is required' : null,
                           ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
 
                           SizedBox(height: 16),
@@ -129,27 +226,42 @@ class _SignupScreenState extends State<SignupScreen> {
                             keyboardType: TextInputType.emailAddress,
                             validator: (val) {
                               if (val!.isEmpty) return 'Email is required';
-                              if (!_isValidEmail(val)) return 'Enter a valid email';
+                              if (!_isValidEmail(val))
+                                return 'Enter a valid email';
                               return null;
                             },
                           ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
 
                           SizedBox(height: 16),
-                          _buildPasswordField().animate().fadeIn(duration: 400.ms, delay: 500.ms),
+                          _buildPasswordField().animate().fadeIn(
+                            duration: 400.ms,
+                            delay: 500.ms,
+                          ),
 
                           SizedBox(height: 40),
-                          _buildSignupButton().animate().fadeIn(duration: 500.ms, delay: 600.ms),
+                          _buildSignupButton().animate().fadeIn(
+                            duration: 500.ms,
+                            delay: 600.ms,
+                          ),
 
                           SizedBox(height: 20),
-                          _buildOrDivider().animate().fadeIn(duration: 400.ms, delay: 650.ms),
+                          _buildOrDivider().animate().fadeIn(
+                            duration: 400.ms,
+                            delay: 650.ms,
+                          ),
 
                           SizedBox(height: 20),
-                          _buildGoogleSignupButton().animate().fadeIn(duration: 500.ms, delay: 700.ms),
+                          _buildGoogleSignupButton().animate().fadeIn(
+                            duration: 500.ms,
+                            delay: 700.ms,
+                          ),
 
                           SizedBox(height: 24),
-                          _buildLoginLink().animate().fadeIn(duration: 400.ms, delay: 750.ms),
+                          _buildLoginLink().animate().fadeIn(
+                            duration: 400.ms,
+                            delay: 750.ms,
+                          ),
                           SizedBox(height: 30),
-
                         ],
                       ),
                     ),
@@ -181,7 +293,10 @@ class _SignupScreenState extends State<SignupScreen> {
         prefixIcon: Icon(icon, color: primaryGreen),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: textLightColor.withOpacity(0.5), width: 1.5),
+          borderSide: BorderSide(
+            color: textLightColor.withOpacity(0.5),
+            width: 1.5,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -228,7 +343,10 @@ class _SignupScreenState extends State<SignupScreen> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: textLightColor.withOpacity(0.5), width: 1.5),
+          borderSide: BorderSide(
+            color: textLightColor.withOpacity(0.5),
+            width: 1.5,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -253,20 +371,7 @@ class _SignupScreenState extends State<SignupScreen> {
       width: double.infinity,
       height: 55,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : () async {
-          if (_formKey.currentState!.validate()) {
-            setState(() => _isLoading = true);
-
-            // Simulate API call delay
-            await Future.delayed(Duration(seconds: 1));
-
-            setState(() => _isLoading = false);
-            Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => PhoneVerificationScreen())
-            );
-          }
-        },
+        onPressed: _isLoading ? null : _signUpWithEmailPass,
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
@@ -276,23 +381,24 @@ class _SignupScreenState extends State<SignupScreen> {
             borderRadius: BorderRadius.circular(15),
           ),
         ),
-        child: _isLoading
-            ? SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
-            : Text(
-          "SIGN UP",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1,
-          ),
-        ),
+        child:
+            _isLoading
+                ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : Text(
+                  "SIGN UP",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
       ),
     );
   }
@@ -300,12 +406,7 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget _buildOrDivider() {
     return Row(
       children: [
-        Expanded(
-          child: Divider(
-            color: Colors.grey.shade400,
-            thickness: 1,
-          ),
-        ),
+        Expanded(child: Divider(color: Colors.grey.shade400, thickness: 1)),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -317,12 +418,7 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
         ),
-        Expanded(
-          child: Divider(
-            color: Colors.grey.shade400,
-            thickness: 1,
-          ),
-        ),
+        Expanded(child: Divider(color: Colors.grey.shade400, thickness: 1)),
       ],
     );
   }
@@ -330,59 +426,45 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget _buildGoogleSignupButton() {
     return Container(
       width: double.infinity,
-      height: 56,  // Slightly taller
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 6,
-            offset: Offset(0, 2),
+      height: 55,
+      child: OutlinedButton.icon(
+        icon: Container(
+          height: 24,
+          width: 24,
+          // child: Image.network(
+          //   'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
+          //   height: 24,
+          //   width: 24,
+          //   errorBuilder: (context, error, stackTrace) {
+          //     // Fallback to a simple G icon if image fails to load
+          //     return Text(
+          //       'G',
+          //       style: TextStyle(
+          //         color: Colors.red,
+          //         fontWeight: FontWeight.bold,
+          //         fontSize: 18,
+          //       ),
+          //     );
+          //   },
+          // ),
+        ),
+        label: Text(
+          "Continue with Google",
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
-        ],
-      ),
-      child: OutlinedButton(
+        ),
         onPressed: _isLoading ? null : _signInWithGoogle,
         style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
+          side: BorderSide(color: Colors.grey.shade300, width: 1),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(15),
           ),
-          side: BorderSide(color: Colors.grey.shade300, width: 1.2),
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 40,
-              width: 40,
-              padding: EdgeInsets.all(0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Image.network(
-                'https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-1024.png',
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.g_mobiledata,
-                  size: 40,
-                  color: Colors.red,
-                ),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text(
-              "Continue with Google",
-              style: TextStyle(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
+          backgroundColor: Colors.white,
+          elevation: 1,
+          shadowColor: Colors.black12,
         ),
       ),
     );

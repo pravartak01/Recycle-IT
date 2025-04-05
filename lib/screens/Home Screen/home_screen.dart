@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:e_waste_app/UiHelper/snackbar_message.dart';
 import 'package:e_waste_app/screens/Home%20Screen/profile_screen.dart';
 import 'package:e_waste_app/screens/Home%20Screen/schedule_pickup_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../Community Screen/community_screen.dart';
 import '../LocationScreen/recycle_screen.dart';
@@ -23,12 +26,25 @@ class HomeScreen extends StatefulWidget {
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  final User? user = FirebaseAuth.instance.currentUser;
+
+  late final String displayName;
+  late final String email;
+  late final String photoURL;
+
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0.0;
   int _currentIndex = 0;
   late AnimationController _animationController;
   bool _isControllerInitialized = false;
+
+String getFirstTwoLetters(String name) {
+  return name.length >= 2 ? name.substring(0, 2) : name; 
+}
+
+
   Widget _buildProfileAvatar() {
     return GestureDetector(
       onTap: _onProfileTap,
@@ -36,15 +52,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         radius: 20,
         backgroundColor: Colors.blue, // Background color
         child: Text(
-          'SK', // User initials
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          getFirstTwoLetters(displayName), // User initials
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
+
   // Sample data for the impact section
   final double _totalEWasteRecycled = 75.6; // kg
   final int _treesSaved = 12;
@@ -65,10 +79,36 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       amountEarned: 1250.00,
       review: OrderReview(
         rating: 4.5,
-        comment: 'Great service! The pickup agent was very professional and on time.',
+        comment:
+            'Great service! The pickup agent was very professional and on time.',
       ),
     ),
   ];
+
+  Future<void> fetchDevices(String userId) async {
+  try {
+    CollectionReference recyclingHistory = FirebaseFirestore.instance
+        .collection('Users')
+        .doc(userId)
+        .collection('RecyclingHistory');
+
+    QuerySnapshot querySnapshot = await recyclingHistory.get();
+
+    List<Map<String, dynamic>> fetchedDevices = querySnapshot.docs.map((doc) {
+      return doc.data() as Map<String, dynamic>; 
+    }).toList();
+
+    // ✅ Update state
+    setState(() {
+      _devices.clear();
+      _devices.addAll(fetchedDevices);
+    });
+
+    print("Devices loaded successfully!");
+  } catch (e) {
+    showSnackBar(context,"Error fetching devices: $e",false);
+  }
+}
 
   // List to store all devices
   List<Map<String, dynamic>> _devices = [];
@@ -76,6 +116,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    displayName = user?.displayName ?? 'User';
+    email = user?.email ?? 'No email';
+    photoURL = user?.photoURL ?? '';
     _scrollController.addListener(_onScroll);
     _animationController = AnimationController(
       vsync: this,
@@ -89,21 +132,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (widget.newDevice != null) {
       _devices.add(widget.newDevice!);
     }
+
+      if (user != null) {
+    fetchDevices(user!.uid);
+  }
     // Add sample data
-    _devices.addAll([
-      {
-        'deviceType': 'iPhone 11',
-        'brand': 'Apple',
-        'condition': 'Working',
-        'age': 'Less than 1 year',
-        'address': '123 Main St, City',
-        'mobile': '9876543210',
-        'date': DateFormat('yyyy-MM-dd').format(DateTime.now().add(Duration(days: 2))),
-        'time': '10:00 AM',
-        'status': 'Scheduled',
-        'dateAdded': DateTime.now().subtract(Duration(days: 1)).toString(),
-      },
-    ]);
+    // _devices.addAll([
+    //   {
+    //     'deviceType': 'iPhone 11',
+    //     'brand': 'Apple',
+    //     'condition': 'Working',
+    //     'age': 'Less than 1 year',
+    //     'address': '123 Main St, City',
+    //     'mobile': '9876543210',
+    //     'date': DateFormat(
+    //       'yyyy-MM-dd',
+    //     ).format(DateTime.now().add(Duration(days: 2))),
+    //     'time': '10:00 AM',
+    //     'status': 'Scheduled',
+    //     'dateAdded': DateTime.now().subtract(Duration(days: 1)).toString(),
+    //   },
+    // ]);
   }
 
   @override
@@ -139,9 +188,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void _navigateToPickupForm() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => SchedulePickupPage(),
-      ),
+      MaterialPageRoute(builder: (context) => SchedulePickupPage()),
     );
   }
 
@@ -163,7 +210,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (_devices.isEmpty) return Container();
 
     // Sort by date added (newest first)
-    _devices.sort((a, b) => DateTime.parse(b['dateAdded']).compareTo(DateTime.parse(a['dateAdded'])));
+    _devices.sort(
+      (a, b) => DateTime.parse(
+        b['dateAdded'],
+      ).compareTo(DateTime.parse(a['dateAdded'])),
+    );
 
     return AnimationLimiter(
       child: Column(
@@ -191,9 +242,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 duration: const Duration(milliseconds: 500),
                 child: SlideAnimation(
                   verticalOffset: 50.0,
-                  child: FadeInAnimation(
-                    child: _buildDeviceCard(device),
-                  ),
+                  child: FadeInAnimation(child: _buildDeviceCard(device)),
                 ),
               );
             },
@@ -207,9 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Card(
       margin: EdgeInsets.fromLTRB(16, 8, 16, 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -228,9 +275,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: device['status'] == 'Scheduled'
-                        ? Colors.blue.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
+                    color:
+                        device['status'] == 'Scheduled'
+                            ? Colors.blue.withOpacity(0.1)
+                            : Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -238,9 +286,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: device['status'] == 'Scheduled'
-                          ? Colors.blue
-                          : Colors.green,
+                      color:
+                          device['status'] == 'Scheduled'
+                              ? Colors.blue
+                              : Colors.green,
                     ),
                   ),
                 ),
@@ -322,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 collapsedHeight: 60.0,
                 pinned: true,
                 flexibleSpace: CollapsibleAppBar(
-                  userName: 'Shantanu Kulkarni',
+                  userName: displayName,
                   appName: 'Recycle\'IT\'',
                   userPoints: 1200,
                   userStreak: 7,
@@ -331,7 +380,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   onNotificationTap: _onNotificationTap,
                   onProfileTap: _onProfileTap,
                   scrollOffset: _scrollOffset,
-                  profileWidget: _buildProfileAvatar(),                ),
+                  profileWidget: _buildProfileAvatar(),
+                ),
               ),
               SliverToBoxAdapter(
                 child: YourImpactSection(
@@ -398,7 +448,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                       Container(
                         margin: EdgeInsets.only(top: 16),
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.grey.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -434,15 +487,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
-              SliverToBoxAdapter(
-                child: _buildRecentPickups(),
-              ),
+              SliverToBoxAdapter(child: _buildRecentPickups()),
               SliverToBoxAdapter(
                 child: PreviousRecyclesSection(previousOrders: _previousOrders),
               ),
             ],
           ),
-
         ],
       ),
       bottomNavigationBar: Container(
@@ -466,7 +516,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             SalomonBottomBar(
               currentIndex: _currentIndex,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              itemPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               onTap: (index) {
                 setState(() {
                   _currentIndex = index;
@@ -483,7 +536,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   case 1:
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => RecyclersScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => RecyclersScreen(),
+                      ),
                     );
                     break;
                   case 2:
@@ -495,7 +550,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   case 3:
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => CommunityScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => CommunityScreen(),
+                      ),
                     );
                     break;
                 }
@@ -529,9 +586,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ],
         ),
-      )
-      ,
+      ),
     );
   }
 }
-

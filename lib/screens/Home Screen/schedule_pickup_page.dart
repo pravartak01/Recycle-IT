@@ -1,3 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:e_waste_app/UiHelper/snackbar_message.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
@@ -19,9 +22,10 @@ class SchedulePickupPage extends StatefulWidget {
   _SchedulePickupPageState createState() => _SchedulePickupPageState();
 }
 
-class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTickerProviderStateMixin {
-
-  final TextEditingController _addressController = TextEditingController(); // Initialize immediately
+class _SchedulePickupPageState extends State<SchedulePickupPage>
+    with SingleTickerProviderStateMixin {
+  final TextEditingController _addressController =
+      TextEditingController(); // Initialize immediately
   final TextEditingController _mobileController = TextEditingController();
   String? mobileNumber;
 
@@ -41,17 +45,29 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
   bool _isLocationLoading = false;
   bool _isSubmitting = false;
 
-  List<String> deviceTypes = ["Smartphone", "Laptop", "Tablet", "Monitor", "Printer", "Others"];
+  List<String> deviceTypes = [
+    "Smartphone",
+    "Laptop",
+    "Tablet",
+    "Monitor",
+    "Printer",
+    "Others",
+  ];
   Map<String, List<String>> deviceBrands = {
     "Smartphone": ["Apple", "Samsung", "OnePlus", "Xiaomi", "Google"],
     "Laptop": ["HP", "Dell", "Asus", "Lenovo", "Apple"],
     "Tablet": ["Samsung", "Apple", "Lenovo", "Microsoft"],
     "Monitor": ["LG", "Samsung", "Dell", "HP"],
     "Printer": ["HP", "Canon", "Epson", "Brother"],
-    "Others": ["Miscellaneous"]
+    "Others": ["Miscellaneous"],
   };
   List<String> conditions = ["New", "Working", "Not Working", "Damaged"];
-  List<String> purchaseTimes = ["Less than 1 year", "1-2 years", "2-3 years", "More than 3 years"];
+  List<String> purchaseTimes = [
+    "Less than 1 year",
+    "1-2 years",
+    "2-3 years",
+    "More than 3 years",
+  ];
 
   @override
   void initState() {
@@ -81,9 +97,9 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Location permission denied'))
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Location permission denied')));
           setState(() {
             _isLocationLoading = false;
           });
@@ -92,18 +108,19 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       }
 
       Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high
+        desiredAccuracy: LocationAccuracy.high,
       );
 
       List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude
+        position.latitude,
+        position.longitude,
       );
 
       String address;
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        address = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+        address =
+            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
       } else {
         address = "Lat: ${position.latitude}, Lng: ${position.longitude}";
       }
@@ -114,17 +131,17 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Location updated successfully!'),
-            backgroundColor: Colors.green,
-          )
+        SnackBar(
+          content: Text('Location updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to get location: $e'),
-            backgroundColor: Colors.red,
-          )
+        SnackBar(
+          content: Text('Failed to get location: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() {
@@ -141,10 +158,10 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${selectedImages.length} images selected'),
-            backgroundColor: Colors.green,
-          )
+        SnackBar(
+          content: Text('${selectedImages.length} images selected'),
+          backgroundColor: Colors.green,
+        ),
       );
     }
   }
@@ -157,10 +174,10 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Photo taken successfully'),
-            backgroundColor: Colors.green,
-          )
+        SnackBar(
+          content: Text('Photo taken successfully'),
+          backgroundColor: Colors.green,
+        ),
       );
     }
   }
@@ -185,11 +202,9 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       },
     );
 
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-      });
-    }
+    setState(() {
+      selectedDate = picked;
+    });
   }
 
   Future<void> pickTime(BuildContext context) async {
@@ -273,58 +288,74 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
     }
   }
 
-  void submitForm() {
+  void submitForm() async{
     if (_formKey.currentState!.validate()) {
+      User? user = FirebaseAuth.instance.currentUser;
       setState(() {
         _isSubmitting = true;
       });
 
-      // Create the device data map
-      final Map<String, dynamic> deviceData = {
-        'deviceType': selectedDeviceType!,
-        'brand': selectedBrand!,
-        'condition': selectedCondition!,
-        'age': timeSincePurchased!,
-        'address': userAddress!,
-        'mobile': mobileNumber!,
-        'date': DateFormat('yyyy-MM-dd').format(selectedDate!),
-        'time': selectedTime!.format(context),
-        'status': 'Scheduled',
-        'dateAdded': DateTime.now().toString(),
-      };
+      if (user != null) {
+        DocumentReference userRef = FirebaseFirestore.instance.collection('Users').doc(user.uid);
+    CollectionReference recyclingHistoryRef = userRef.collection('RecyclingHistory');
 
-      // Simulate network delay
-      Future.delayed(Duration(seconds: 2), () {
-        Navigator.pushAndRemoveUntil(
+    // Generate a new document ID for the device
+    DocumentReference newDeviceRef = recyclingHistoryRef.doc();
+
+        // Create the device data map
+        final Map<String, dynamic> deviceData = {
+          'deviceType': selectedDeviceType!,
+          'brand': selectedBrand!,
+          'condition': selectedCondition!,
+          'age': timeSincePurchased!,
+          'address': userAddress!,
+          'mobile': mobileNumber!,
+          'date': DateFormat('yyyy-MM-dd').format(selectedDate!),
+          'time': selectedTime!.format(context),
+          'status': 'Scheduled',
+          'dateAdded': DateTime.now().toString(),
+        };
+
+        try {
+      // Store data in Firestore
+      await newDeviceRef.set(deviceData);
+      showSnackBar(context,"Device added successfully!", true);
+      Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => HomeScreen(
-              newDevice: deviceData, // Pass the device data
-            ),
+            builder:
+                (context) => HomeScreen(
+                  newDevice: deviceData, // Pass the device data
+                ),
           ),
-              (route) => false, // Remove all previous routes
+          (route) => false, // Remove all previous routes
         );
-      });
+    } catch (e) {
+      showSnackBar(context,"Error adding device: $e", false);
     }
-  }  @override
+
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
           "Schedule E-Waste Pickup",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.teal,
         elevation: 0,
         centerTitle: true,
-        leading: _currentStep > 0
-            ? IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: previousStep,
-        )
-            : null,
+        leading:
+            _currentStep > 0
+                ? IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: previousStep,
+                )
+                : null,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -353,10 +384,11 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
                     padding: EdgeInsets.all(16),
                     children: AnimationConfiguration.toStaggeredList(
                       duration: Duration(milliseconds: 600),
-                      childAnimationBuilder: (widget) => SlideAnimation(
-                        horizontalOffset: 50.0,
-                        child: FadeInAnimation(child: widget),
-                      ),
+                      childAnimationBuilder:
+                          (widget) => SlideAnimation(
+                            horizontalOffset: 50.0,
+                            child: FadeInAnimation(child: widget),
+                          ),
                       children: _buildCurrentStepWidgets(),
                     ),
                   ),
@@ -396,10 +428,7 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       SizedBox(height: 16),
       Text(
         "What device would you like to recycle?",
-        style: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: 24),
@@ -427,77 +456,85 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
             fillColor: Colors.white,
           ),
           isExpanded: true,
-          items: deviceTypes.map((type) {
-            IconData icon = _getDeviceIcon(type);
-            return DropdownMenuItem(
-              value: type,
-              child: Row(
-                children: [
-                  Icon(icon, size: 20, color: Colors.teal),
-                  SizedBox(width: 12),
-                  Text(type),
-                ],
-              ),
-            );
-          }).toList(),
+          items:
+              deviceTypes.map((type) {
+                IconData icon = _getDeviceIcon(type);
+                return DropdownMenuItem(
+                  value: type,
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 20, color: Colors.teal),
+                      SizedBox(width: 12),
+                      Text(type),
+                    ],
+                  ),
+                );
+              }).toList(),
           onChanged: (val) {
             setState(() {
               selectedDeviceType = val as String;
-              selectedBrand = null;  // Reset brand when device type changes
+              selectedBrand = null; // Reset brand when device type changes
             });
           },
-          validator: (val) => val == null ? "Please select a device type" : null,
+          validator:
+              (val) => val == null ? "Please select a device type" : null,
           value: selectedDeviceType,
         ),
       ),
       SizedBox(height: 16),
       if (selectedDeviceType != null)
         Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: DropdownButtonFormField(
-            decoration: InputDecoration(
-              labelText: "Brand",
-              prefixIcon: Icon(Icons.business, color: Colors.teal),
-              border: OutlineInputBorder(
+              decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            isExpanded: true,
-            items: deviceBrands[selectedDeviceType]!.map((brand) {
-              return DropdownMenuItem(
-                value: brand,
-                child: Row(
-                  children: [
-                    _getBrandIcon(brand),
-                    SizedBox(width: 12),
-                    Text(brand),
-                  ],
+              child: DropdownButtonFormField(
+                decoration: InputDecoration(
+                  labelText: "Brand",
+                  prefixIcon: Icon(Icons.business, color: Colors.teal),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
-              );
-            }).toList(),
-            onChanged: (val) => setState(() => selectedBrand = val as String),
-            validator: (val) => val == null ? "Please select a brand" : null,
-            value: selectedBrand,
-          ),
-        ).animate().slideX(
-          begin: 0.3,
-          end: 0,
-          curve: Curves.easeOutQuad,
-          duration: Duration(milliseconds: 400),
-        ).fade(duration: Duration(milliseconds: 400)),
+                isExpanded: true,
+                items:
+                    deviceBrands[selectedDeviceType]!.map((brand) {
+                      return DropdownMenuItem(
+                        value: brand,
+                        child: Row(
+                          children: [
+                            _getBrandIcon(brand),
+                            SizedBox(width: 12),
+                            Text(brand),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                onChanged:
+                    (val) => setState(() => selectedBrand = val as String),
+                validator:
+                    (val) => val == null ? "Please select a brand" : null,
+                value: selectedBrand,
+              ),
+            )
+            .animate()
+            .slideX(
+              begin: 0.3,
+              end: 0,
+              curve: Curves.easeOutQuad,
+              duration: Duration(milliseconds: 400),
+            )
+            .fade(duration: Duration(milliseconds: 400)),
     ];
   }
 
@@ -512,10 +549,7 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       SizedBox(height: 16),
       Text(
         "Tell us about your ${selectedDeviceType?.toLowerCase() ?? 'device'}",
-        style: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: 24),
@@ -543,19 +577,20 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
             fillColor: Colors.white,
           ),
           isExpanded: true,
-          items: conditions.map((cond) {
-            IconData icon = _getConditionIcon(cond);
-            return DropdownMenuItem(
-              value: cond,
-              child: Row(
-                children: [
-                  Icon(icon, size: 20, color: _getConditionColor(cond)),
-                  SizedBox(width: 12),
-                  Text(cond),
-                ],
-              ),
-            );
-          }).toList(),
+          items:
+              conditions.map((cond) {
+                IconData icon = _getConditionIcon(cond);
+                return DropdownMenuItem(
+                  value: cond,
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 20, color: _getConditionColor(cond)),
+                      SizedBox(width: 12),
+                      Text(cond),
+                    ],
+                  ),
+                );
+              }).toList(),
           onChanged: (val) => setState(() => selectedCondition = val as String),
           validator: (val) => val == null ? "Please select condition" : null,
           value: selectedCondition,
@@ -586,12 +621,17 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
             fillColor: Colors.white,
           ),
           isExpanded: true,
-          items: purchaseTimes.map((time) => DropdownMenuItem(
-              value: time,
-              child: Text(time)
-          )).toList(),
-          onChanged: (val) => setState(() => timeSincePurchased = val as String),
-          validator: (val) => val == null ? "Please select time since purchased" : null,
+          items:
+              purchaseTimes
+                  .map(
+                    (time) => DropdownMenuItem(value: time, child: Text(time)),
+                  )
+                  .toList(),
+          onChanged:
+              (val) => setState(() => timeSincePurchased = val as String),
+          validator:
+              (val) =>
+                  val == null ? "Please select time since purchased" : null,
           value: timeSincePurchased,
         ),
       ),
@@ -609,10 +649,7 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       SizedBox(height: 16),
       Text(
         "Where should we pick up your device?",
-        style: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: 24),
@@ -638,7 +675,9 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
           ),
           maxLines: 3,
           onChanged: (val) => userAddress = val,
-          validator: (val) => val == null || val.isEmpty ? "Please enter an address" : null,
+          validator:
+              (val) =>
+                  val == null || val.isEmpty ? "Please enter an address" : null,
         ),
       ),
       SizedBox(height: 16),
@@ -684,33 +723,35 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       SizedBox(height: 16),
       ElevatedButton.icon(
         onPressed: _isLocationLoading ? null : getCurrentLocation,
-        icon: _isLocationLoading
-            ? Container(
-          width: 24,
-          height: 24,
-          padding: EdgeInsets.all(2),
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 3,
-          ),
-        )
-            : Icon(Icons.my_location),
-        label: Text(_isLocationLoading ? "Getting location..." : "Use Current Location"),
+        icon:
+            _isLocationLoading
+                ? Container(
+                  width: 24,
+                  height: 24,
+                  padding: EdgeInsets.all(2),
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                )
+                : Icon(Icons.my_location),
+        label: Text(
+          _isLocationLoading ? "Getting location..." : "Use Current Location",
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.teal,
           foregroundColor: Colors.white,
           padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           elevation: 2,
         ),
       ),
       SizedBox(height: 24),
       Text(
         "Take pictures of your device",
-        style: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: 16),
@@ -725,7 +766,9 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
               backgroundColor: Colors.blue.shade700,
               foregroundColor: Colors.white,
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
           SizedBox(width: 16),
@@ -737,7 +780,9 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
@@ -767,9 +812,7 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.teal.shade200),
                   image: DecorationImage(
-                    image: FileImage(
-                      File(images![index].path),
-                    ),
+                    image: FileImage(File(images![index].path)),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -780,6 +823,7 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       ],
     ];
   }
+
   List<Widget> _buildScheduleStep() {
     return [
       Center(
@@ -791,10 +835,7 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
       SizedBox(height: 16),
       Text(
         "When should we pick up your device?",
-        style: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: 24),
@@ -841,7 +882,9 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
                           Text(
                             selectedDate == null
                                 ? "Select a date"
-                                : DateFormat('EEEE, MMM d, yyyy').format(selectedDate!),
+                                : DateFormat(
+                                  'EEEE, MMM d, yyyy',
+                                ).format(selectedDate!),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -925,22 +968,13 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
               title: "Device",
               value: "$selectedDeviceType, $selectedBrand",
             ),
-            SummaryRow(
-              title: "Condition",
-              value: "$selectedCondition",
-            ),
-            SummaryRow(
-              title: "Age",
-              value: "$timeSincePurchased",
-            ),
+            SummaryRow(title: "Condition", value: "$selectedCondition"),
+            SummaryRow(title: "Age", value: "$timeSincePurchased"),
             SummaryRow(
               title: "Images",
               value: "${images?.length ?? 0} uploaded",
             ),
-            SummaryRow(
-              title: "Mobile",
-              value: mobileNumber ?? "Not provided",
-            ),
+            SummaryRow(title: "Mobile", value: mobileNumber ?? "Not provided"),
           ],
         ),
       ),
@@ -960,82 +994,85 @@ class _SchedulePickupPageState extends State<SchedulePickupPage> with SingleTick
           ),
         ],
       ),
-      child: _currentStep == 3
-          ? ElevatedButton(
-        onPressed: validateCurrentStep() && !_isSubmitting ? submitForm : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.teal,
-          padding: EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
-        child: _isSubmitting
-            ? Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 3,
+      child:
+          _currentStep == 3
+              ? ElevatedButton(
+                onPressed:
+                    validateCurrentStep() && !_isSubmitting ? submitForm : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child:
+                    _isSubmitting
+                        ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 3,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text("Processing..."),
+                          ],
+                        )
+                        : Text(
+                          "Schedule Pickup",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+              )
+              : Row(
+                children: [
+                  if (_currentStep > 0)
+                    Expanded(
+                      flex: 1,
+                      child: OutlinedButton(
+                        onPressed: previousStep,
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(color: Colors.teal),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text("Previous"),
+                      ),
+                    ),
+                  if (_currentStep > 0) SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: validateCurrentStep() ? nextStep : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        "Next",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            SizedBox(width: 12),
-            Text("Processing..."),
-          ],
-        )
-            : Text(
-          "Schedule Pickup",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      )
-          : Row(
-          children: [
-          if (_currentStep > 0)
-      Expanded(
-      flex: 1,
-      child: OutlinedButton(
-        onPressed: previousStep,
-        style: OutlinedButton.styleFrom(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          side: BorderSide(color: Colors.teal),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Text("Previous"),
-      ),
-    ),
-    if (_currentStep > 0) SizedBox(width: 16),
-    Expanded(
-    flex: 2,
-    child: ElevatedButton(
-    onPressed: validateCurrentStep() ? nextStep : null,
-    style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.teal,
-    padding: EdgeInsets.symmetric(vertical: 16),
-    shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(12),
-    ),
-    elevation: 0,
-    ),
-    child: Text(
-    "Next",
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-    ),
-    ),
-          ],
-      ),
     );
   }
 
@@ -1144,7 +1181,8 @@ class StepProgressIndicator extends StatelessWidget {
                 margin: EdgeInsets.symmetric(horizontal: 2),
                 height: 4,
                 decoration: BoxDecoration(
-                  color: index <= currentStep ? Colors.teal : Colors.grey.shade300,
+                  color:
+                      index <= currentStep ? Colors.teal : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1160,7 +1198,10 @@ class StepProgressIndicator extends StatelessWidget {
                   stepTitles[index],
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    fontWeight: index <= currentStep ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        index <= currentStep
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                     color: index <= currentStep ? Colors.teal : Colors.grey,
                   ),
                 ),
@@ -1177,10 +1218,7 @@ class SummaryRow extends StatelessWidget {
   final String title;
   final String value;
 
-  const SummaryRow({
-    required this.title,
-    required this.value,
-  });
+  const SummaryRow({required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -1192,10 +1230,7 @@ class SummaryRow extends StatelessWidget {
             flex: 2,
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
             ),
           ),
           Expanded(
@@ -1238,7 +1273,6 @@ class ReceiptPage extends StatelessWidget {
     required this.time,
     required this.images,
     required this.mobileNumber, // Add this
-
   });
 
   @override
@@ -1281,30 +1315,12 @@ class ReceiptPage extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  SummaryRow(
-                    title: "Device",
-                    value: "$deviceType, $brand",
-                  ),
-                  SummaryRow(
-                    title: "Condition",
-                    value: condition,
-                  ),
-                  SummaryRow(
-                    title: "Age",
-                    value: timeSincePurchased,
-                  ),
-                  SummaryRow(
-                    title: "Address",
-                    value: address,
-                  ),
-                  SummaryRow(
-                    title: "Date",
-                    value: date,
-                  ),
-                  SummaryRow(
-                    title: "Time",
-                    value: time,
-                  ),
+                  SummaryRow(title: "Device", value: "$deviceType, $brand"),
+                  SummaryRow(title: "Condition", value: condition),
+                  SummaryRow(title: "Age", value: timeSincePurchased),
+                  SummaryRow(title: "Address", value: address),
+                  SummaryRow(title: "Date", value: date),
+                  SummaryRow(title: "Time", value: time),
                   SummaryRow(
                     title: "Images",
                     value: "${images.length} uploaded",
@@ -1327,10 +1343,7 @@ class ReceiptPage extends StatelessWidget {
                 ),
                 child: Text(
                   "Done",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
             ),

@@ -1,8 +1,11 @@
+import 'package:e_waste_app/UiHelper/snackbar_message.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../Home Screen/home_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'forgot_password.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -15,6 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Main app theme colors - matches signup screen
   final Color primaryGreen = Color(0xFF4CAF50);
@@ -22,6 +27,30 @@ class _LoginScreenState extends State<LoginScreen> {
   final Color backgroundColor = Colors.white;
   final Color textDarkColor = Color(0xFF2E7D32);
   final Color textLightColor = Color(0xFF81C784);
+
+  Future<void> _loginUserWithEmailAndPassword() async {
+    setState(() => _isLoading = true);
+    if (_formKey.currentState!.validate()) {
+      try {
+        final userCredential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(
+              email: _emailController.text.trim(),
+              password: _passwordController.text.trim(),
+            );
+        showSnackBar(context, "User LogedIn Successfully!", true);
+
+        setState(() => _isLoading = false);
+        print(userCredential);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      } on FirebaseAuthException catch (e) {
+        showSnackBar(context, e.message.toString(), false);
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -39,22 +68,39 @@ class _LoginScreenState extends State<LoginScreen> {
     // Implement Google Sign-In logic here
     setState(() => _isLoading = true);
 
-    // Simulate API call delay
-    await Future.delayed(Duration(seconds: 1));
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        showSnackBar(context, "Google Sign-In cancelled.", false);
+        setState(() => _isLoading = false);
+        return;
+      }
 
-    setState(() => _isLoading = false);
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
-    // Navigate to Home Page after successful login
-    Navigator.pushReplacement(
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+      showSnackBar(context, "Google Sign-In successful!", true);
+      setState(() => _isLoading = false);
+      Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => HomeScreen())
-    );
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      showSnackBar(context, "Google Sign-In failed: $e", false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,  // Prevents keyboard overflow
+      resizeToAvoidBottomInset: true, // Prevents keyboard overflow
       backgroundColor: backgroundColor,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.dark.copyWith(
@@ -67,19 +113,25 @@ class _LoginScreenState extends State<LoginScreen> {
               return SingleChildScrollView(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,  // Makes content stretch but not overflow
+                    minHeight:
+                        constraints
+                            .maxHeight, // Makes content stretch but not overflow
                   ),
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center, // Keeps UI centered
+                      mainAxisAlignment:
+                          MainAxisAlignment.center, // Keeps UI centered
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(height: 16),
 
                         // Back Button
                         IconButton(
-                          icon: Icon(Icons.arrow_back_ios, color: textDarkColor),
+                          icon: Icon(
+                            Icons.arrow_back_ios,
+                            color: textDarkColor,
+                          ),
                           onPressed: () => Navigator.pop(context),
                         ),
 
@@ -95,7 +147,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: BoxShape.circle,
                             ),
                             child: Center(
-                              child: Icon(Icons.eco_rounded, size: 60, color: primaryGreen),
+                              child: Icon(
+                                Icons.eco_rounded,
+                                size: 60,
+                                color: primaryGreen,
+                              ),
                             ),
                           ),
                         ),
@@ -105,7 +161,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Header
                         Text(
                           'Welcome Back!',
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textDarkColor),
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: textDarkColor,
+                          ),
                         ),
 
                         SizedBox(height: 8),
@@ -129,7 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (val) {
                                   if (val!.isEmpty) return 'Email is required';
-                                  if (!_isValidEmail(val)) return 'Enter a valid email';
+                                  if (!_isValidEmail(val))
+                                    return 'Enter a valid email';
                                   return null;
                                 },
                               ),
@@ -147,7 +208,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   onPressed: () {
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
+                                      MaterialPageRoute(
+                                        builder:
+                                            (context) => ForgotPasswordScreen(),
+                                      ),
                                     );
                                   },
 
@@ -155,7 +219,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                     padding: const EdgeInsets.all(4.0),
                                     child: Text(
                                       "Forgot password?",
-                                      style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w400 , decoration: TextDecoration.underline , decorationColor: Colors.green),
+                                      style: TextStyle(
+                                        color: primaryGreen,
+                                        fontWeight: FontWeight.w400,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: Colors.green,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -192,7 +261,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-
   Widget _buildInputField({
     required TextEditingController controller,
     required String label,
@@ -211,7 +279,10 @@ class _LoginScreenState extends State<LoginScreen> {
         prefixIcon: Icon(icon, color: primaryGreen),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: textLightColor.withOpacity(0.5), width: 1.5),
+          borderSide: BorderSide(
+            color: textLightColor.withOpacity(0.5),
+            width: 1.5,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -257,7 +328,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: textLightColor.withOpacity(0.5), width: 1.5),
+          borderSide: BorderSide(
+            color: textLightColor.withOpacity(0.5),
+            width: 1.5,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -282,22 +356,7 @@ class _LoginScreenState extends State<LoginScreen> {
       width: double.infinity,
       height: 55,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : () async {
-          if (_formKey.currentState!.validate()) {
-            setState(() => _isLoading = true);
-
-            // Simulate API call delay
-            await Future.delayed(Duration(seconds: 1));
-
-            setState(() => _isLoading = false);
-
-            // Navigate to Home Page after successful login
-            Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HomeScreen())
-            );
-          }
-        },
+        onPressed: _isLoading ? null : _loginUserWithEmailAndPassword,
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
@@ -307,23 +366,24 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(15),
           ),
         ),
-        child: _isLoading
-            ? SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
-            : Text(
-          "LOGIN",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1,
-          ),
-        ),
+        child:
+            _isLoading
+                ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : Text(
+                  "LOGIN",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
       ),
     );
   }
@@ -331,12 +391,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildOrDivider() {
     return Row(
       children: [
-        Expanded(
-          child: Divider(
-            color: Colors.grey.shade400,
-            thickness: 1,
-          ),
-        ),
+        Expanded(child: Divider(color: Colors.grey.shade400, thickness: 1)),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -348,12 +403,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-        Expanded(
-          child: Divider(
-            color: Colors.grey.shade400,
-            thickness: 1,
-          ),
-        ),
+        Expanded(child: Divider(color: Colors.grey.shade400, thickness: 1)),
       ],
     );
   }
@@ -361,63 +411,46 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildGoogleSignInButton() {
     return Container(
       width: double.infinity,
-      height: 56,  // Slightly taller
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 6,
-            offset: Offset(0, 2),
+      height: 55,
+      child: OutlinedButton.icon(
+        // icon: Image.network(
+        //   'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
+        //   height: 24,
+        //   width: 24,
+        //   errorBuilder: (context, error, stackTrace) {
+        //     // Fallback to a simple G icon if image fails to load
+        //     return Text(
+        //       'G',
+        //       style: TextStyle(
+        //         color: Colors.red,
+        //         fontWeight: FontWeight.bold,
+        //         fontSize: 18,
+        //       ),
+        //     );
+        //   },
+        // ),
+        label: Text(
+          "Continue with Google",
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
-        ],
-      ),
-      child: OutlinedButton(
+        ),
         onPressed: _isLoading ? null : _signInWithGoogle,
         style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
+          side: BorderSide(color: Colors.grey.shade300, width: 1),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(15),
           ),
-          side: BorderSide(color: Colors.grey.shade300, width: 1.2),
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 40,
-              width: 40,
-              padding: EdgeInsets.all(0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Image.network(
-                'https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-1024.png',
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.g_mobiledata,
-                  size: 24,
-                  color: Colors.red,
-                ),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text(
-              "Continue with Google",
-              style: TextStyle(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
+          backgroundColor: Colors.white,
+          elevation: 1,
+          shadowColor: Colors.black12,
         ),
       ),
     );
   }
+
   Widget _buildSignUpLink() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -433,8 +466,6 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Text(
             "Sign Up",
             style: TextStyle(
-              decoration: TextDecoration.underline,
-              decorationColor:primaryGreen ,
               color: primaryGreen,
               fontWeight: FontWeight.bold,
               fontSize: 15,
